@@ -75,33 +75,15 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
 </div>
 
 <script type="module">
-  // Firebase imports
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-  import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js";
-
-  // Owner login
-  const OWNER_EMAIL="nasiriq703@gmail.com";
-  const OWNER_PASS="nasir703";
-  const STORAGE_LOGIN="codeuser_login";
+  // Secure API Connection Config
+  const API_URL = "https://ahmad-bhai-codes-user.vercel.app/c";
+  const STORAGE_TOKEN = "codeuser_token";
 
   const $=s=>document.querySelector(s);
-  function isLogged(){return JSON.parse(localStorage.getItem(STORAGE_LOGIN)||"false")}
-  function setLogged(v){localStorage.setItem(STORAGE_LOGIN,JSON.stringify(v))}
+  function isLogged(){return !!localStorage.getItem(STORAGE_TOKEN)}
+  function getToken(){return localStorage.getItem(STORAGE_TOKEN) || ""}
+  function setLogged(token){if(token){localStorage.setItem(STORAGE_TOKEN, token)}else{localStorage.removeItem(STORAGE_TOKEN)}}
   $("#errorClose").onclick=()=>$("#errorModal").style.display="none";
-
-  // Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyBDg_GYgKhittxe-Qn97OK8DmJa3Y4RNBc",
-    authDomain: "ahmad-bhai-script-users-info.firebaseapp.com",
-    databaseURL: "https://ahmad-bhai-script-users-info-default-rtdb.firebaseio.com/",
-    projectId: "ahmad-bhai-script-users-info",
-    storageBucket: "ahmad-bhai-script-users-info.appspot.com",
-    messagingSenderId: "912008650984",
-    appId: "1:912008650984:web:51e52ce210ab231b2ca95d",
-    measurementId: "G-Q91WVZ94DT"
-  };
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
 
   function showError(){ $("#errorModal").style.display="block"; }
   function showLoading(cb){
@@ -125,11 +107,28 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
         <button type="submit">Sign In</button>
       </form>`;
     c.appendChild(box);
-    $("#loginForm").onsubmit=e=>{
+    $("#loginForm").onsubmit=async e=>{
       e.preventDefault();
-      if($("#loginEmail").value===OWNER_EMAIL && $("#loginPass").value===OWNER_PASS){
-        setLogged(true); showLoading(renderAppFirebase);
-      } else showError();
+      try {
+        const res = await fetch(`${API_URL}?action=login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: $("#loginEmail").value.trim(),
+            password: $("#loginPass").value
+          })
+        });
+        const result = await res.json();
+        if(result.success && result.token) {
+          setLogged(result.token); 
+          showLoading(renderAppFirebase);
+        } else {
+          showError();
+        }
+      } catch(err) {
+        console.error(err);
+        showError();
+      }
     };
   }
 
@@ -368,7 +367,7 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
     ["u_email","u_name","u_trader","u_date","u_country"].forEach(id=>$("#"+id).oninput=validate);
     $("#u_trader").oninput=e=>{e.target.value=e.target.value.replace(/[^0-9]/g,"").slice(0,8);validate();}
 
-    // Firebase add user
+    // Secure Add User Layer via Backend
     $("#confirmBtn").onclick=async ()=>{
       const u={
         email: $("#u_email").value.trim(),
@@ -377,81 +376,111 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
         date: $("#u_date").value,
         country: $("#u_country").value
       };
-      await push(ref(db,'users'), u);
-      $("#addForm").reset(); $("#addForm").style.display="none";
+      try {
+        const res = await fetch(`${API_URL}?action=add`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": getToken()
+          },
+          body: JSON.stringify(u)
+        });
+        const status = await res.json();
+        if(status.success) {
+          $("#addForm").reset(); 
+          $("#addForm").style.display="none";
+          renderPagesFirebase(); // List refresh karein
+        }
+      } catch(err) {
+        console.error("Save failed:", err);
+      }
     };
 
     renderPagesFirebase();
   }
 
-  function renderPagesFirebase(){
+  // Secure Load and Delete via Backend Layer
+  async function renderPagesFirebase(){
     const grid = document.getElementById("pagesGrid") || (()=>{const g=document.createElement("div");g.id="pagesGrid";g.className="pages";$("#content").appendChild(g);return g})();
     grid.innerHTML="";
-    const usersRef = ref(db,'users');
-    onValue(usersRef, snapshot => {
-      const data = snapshot.val();
-      grid.innerHTML="";
-      const keys = data ? Object.keys(data) : [];
-      keys.forEach((key,i)=>{
-        const p = data[key];
-        const card=document.createElement("div");
-        card.className="page-card";
-        card.innerHTML=`
-          <svg class="heart" viewBox="0 0 24 24" style="position:absolute;right:8px;top:8px">
-            <path d="M12 21s-7.3-4.7-9.2-7.1C-0.5 9.4 3.6 4 8.5 6.3c1.5.8 2.5 2 3.5 3.3 1-1.3 2-2.5 3.5-3.3 4.9-2.3 9 3.1 5.7 7.6C19.3 16.3 12 21 12 21z"/>
-          </svg>
-          <div class="page-title">${i+1}. ${p.name}</div>
-          <div>
-            <button class="openBtn">Open</button>
-            <button class="danger removeBtn">Remove</button>
-          </div>
-          <div class="page-detail">
-            <div>Email: ${p.email}</div>
-            <div>TraderID: ${p.traderID}</div>
-            <div>Date: ${p.date}</div>
-            <div>Country: ${p.country}</div>
-            <button class="hideBtn">Hide</button>
-          </div>`;
-        card.querySelector(".openBtn").onclick=()=>{card.querySelector(".page-detail").style.display="block";}
-        card.querySelector(".hideBtn").onclick=()=>{card.querySelector(".page-detail").style.display="none";}
-        card.querySelector(".removeBtn").onclick=()=>{remove(ref(db,'users/'+key))}
-        grid.appendChild(card);
+    
+    try {
+      const res = await fetch(`${API_URL}?action=load`, {
+        headers: { "Authorization": getToken() }
       });
-      $("#pagesCount").textContent = keys.length;
-    });
+      const responseData = await res.json();
+      
+      if(responseData.success) {
+        const data = responseData.data;
+        const keys = data ? Object.keys(data) : [];
+        
+        keys.forEach((key,i)=>{
+          const p = data[key];
+          const card=document.createElement("div");
+          card.className="page-card";
+          card.innerHTML=`
+            <svg class="heart" viewBox="0 0 24 24" style="position:absolute;right:8px;top:8px">
+              <path d="M12 21s-7.3-4.7-9.2-7.1C-0.5 9.4 3.6 4 8.5 6.3c1.5.8 2.5 2 3.5 3.3 1-1.3 2-2.5 3.5-3.3 4.9-2.3 9 3.1 5.7 7.6C19.3 16.3 12 21 12 21z"/>
+            </svg>
+            <div class="page-title">${i+1}. ${p.name}</div>
+            <div>
+              <button class="openBtn">Open</button>
+              <button class="danger removeBtn">Remove</button>
+            </div>
+            <div class="page-detail">
+              <div>Email: ${p.email}</div>
+              <div>TraderID: ${p.traderID}</div>
+              <div>Date: ${p.date}</div>
+              <div>Country: ${p.country}</div>
+              <button class="hideBtn">Hide</button>
+            </div>`;
+            
+          card.querySelector(".openBtn").onclick=()=>{card.querySelector(".page-detail").style.display="block";}
+          card.querySelector(".hideBtn").onclick=()=>{card.querySelector(".page-detail").style.display="none";}
+          
+          // Secure Delete Action
+          card.querySelector(".removeBtn").onclick=async ()=>{
+            try {
+              const delRes = await fetch(`${API_URL}?action=delete&userKey=${key}`, {
+                method: "GET", // Aapka backend ispe check handle kar rha h query params ke zariye
+                headers: { "Authorization": getToken() }
+              });
+              const delStatus = await delRes.json();
+              if(delStatus.success) {
+                renderPagesFirebase(); // Refresh list after clear
+              }
+            } catch(err) {
+              console.error("Delete failed:", err);
+            }
+          }
+          grid.appendChild(card);
+        });
+        $("#pagesCount").textContent = keys.length;
+      }
+    } catch(err) {
+      console.error("Data load failed:", err);
+    }
   }
 
-  $("#logoutBtn").onclick=()=>{setLogged(false);renderLogin();};
+  $("#logoutBtn").onclick=()=>{setLogged(null);renderLogin();};
   if(isLogged()) renderAppFirebase(); else renderLogin();
 
 </script>
   <script>
   (async function() {
     try {
-      // 1. URL se HTML fetch karein
       const response = await fetch('https://magic-scripts.vercel.app/heart.html');
       const htmlText = await response.text();
-
-      // 2. DOMParser ke zariye HTML ko parse karein
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlText, 'text/html');
-
-      // 3. Parsed HTML mein se <script> tag dhoondein
       const originalScript = doc.querySelector('script');
 
       if (originalScript) {
-        // 4. Naya script element banayein (kyunki parsed script direct chalne mein masla karti hai)
         const newScript = document.createElement('script');
-        
-        // Agar script ke andar code hai (inline) toh wo copy karein
         newScript.textContent = originalScript.textContent;
-        
-        // Agar script ka apna koi 'src' attribute hai toh wo bhi copy kar lein
         if (originalScript.src) {
           newScript.src = originalScript.src;
         }
-
-        // 5. Is nayi script ko website ke body element mein inject (lagana) kar dein
         document.body.appendChild(newScript);
         console.log('Script successfully injected and executed!');
       } else {
@@ -462,6 +491,5 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
     }
   })();
   </script>
-  
 </body>
 </html>
