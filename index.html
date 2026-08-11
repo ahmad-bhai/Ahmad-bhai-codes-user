@@ -73,6 +73,29 @@ input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #d0dff7}
     <main style="flex:1"><div id="content"></div></main>
   </div>
 </div>
+  <script>
+(function() {
+    // 1. External Font URL add karo
+    const link = document.createElement('link');
+    link.href = 'https://v1.fontapi.ir/css/SFProDisplay';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+
+    // 2. CSS Styles apply karo
+    const style = document.createElement('style');
+    style.innerHTML = `
+        * {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            -webkit-font-smoothing: antialiased !important;
+            text-rendering: optimizeLegibility !important;
+            letter-spacing: -0.015em !important;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    console.log("iPhone 17 Pro Max Typography Loaded!");
+})();
+  </script>
 
 <script type="module">
   // Secure API Connection Config
