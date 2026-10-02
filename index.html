@@ -549,13 +549,15 @@ input:focus {
 
 <script type="module">
   const API_URL = "https://ahmad-bhai-codes-user.vercel.app/c";
-  const STORAGE_TOKEN = "codeuser_dynamic_session";
   const $ = s => document.querySelector(s);
 
-  function getToken() { return localStorage.getItem(STORAGE_TOKEN) || ""; }
-  function setToken(t) { if(t) localStorage.setItem(STORAGE_TOKEN, t); else localStorage.removeItem(STORAGE_TOKEN); }
+  // IN-MEMORY SESSION TOKEN ONLY (NO LOCAL STORAGE)
+  let activeSessionToken = "";
 
-  // Custom Dialog Alert Function
+  function getToken() { return activeSessionToken; }
+  function setToken(t) { activeSessionToken = t || ""; }
+
+  // Custom Alert Modal
   function showCustomAlert(title, message) {
     $("#dialogTitle").textContent = title;
     $("#dialogMsg").textContent = message;
@@ -566,7 +568,41 @@ input:focus {
     $("#customDialog").classList.remove("active");
   };
 
-  // Password Show / Hide Toggle
+  // Immediate Hard Logout Trigger
+  async function forceLogout(reasonMessage = "Session Expired or Network Interrupted!") {
+    if (activeSessionToken) {
+      try {
+        await fetch(`${API_URL}?action=logout`, { headers: { "Authorization": getToken() } });
+      } catch(e){}
+    }
+    
+    setToken("");
+    $("#dashboardApp").style.display = "none";
+    $("#logoutBtn").style.display = "none";
+    $("#loginScreen").style.display = "block";
+
+    setTimeout(() => {
+      $("#flipCard").classList.remove("flipped");
+      $("#loginForm").reset();
+    }, 100);
+
+    showCustomAlert("Logged Out", reasonMessage);
+  }
+
+  // ─── AGGRESSIVE NETWORK & SECURITY LISTENERS ───
+  // 1. Net Error / Disconnect Trigger
+  window.addEventListener('offline', () => {
+    forceLogout("Internet connection lost. You have been logged out for security!");
+  });
+
+  // 2. Unload / Close Tab Guard
+  window.addEventListener('beforeunload', () => {
+    if(activeSessionToken) {
+      navigator.sendBeacon(`${API_URL}?action=logout&token=${activeSessionToken}`);
+    }
+  });
+
+  // Password Toggle
   $("#toggleLoginPass").onclick = () => {
     const input = $("#loginPass");
     const icon = $("#loginPassIcon");
@@ -579,15 +615,14 @@ input:focus {
     }
   };
 
-  // Complete A-Z Sorted Countries Map
+  // Countries Flag Engine
   const allCountriesMap = {
     "Afghanistan":"af","Albania":"al","Algeria":"dz","Andorra":"ad","Angola":"ao","Argentina":"ar","Armenia":"am","Australia":"au","Austria":"at","Azerbaijan":"az","Bahamas":"bs","Bahrain":"bh","Bangladesh":"bd","Barbados":"bb","Belarus":"by","Belgium":"be","Belize":"bz","Benin":"bj","Bhutan":"bt","Bolivia":"bo","Bosnia and Herzegovina":"ba","Botswana":"bw","Brazil":"br","Brunei":"bn","Bulgaria":"bg","Burkina Faso":"bf","Burundi":"bi","Cambodia":"kh","Cameroon":"cm","Canada":"ca","Chile":"cl","China":"cn","Colombia":"co","Costa Rica":"cr","Croatia":"hr","Cuba":"cu","Cyprus":"cy","Czechia":"cz","Denmark":"dk","Djibouti":"dj","Dominica":"dm","Dominican Republic":"do","Ecuador":"ec","Egypt":"eg","El Salvador":"sv","Estonia":"ee","Ethiopia":"et","Fiji":"fj","Finland":"fi","France":"fr","Gabon":"ga","Georgia":"ge","Germany":"de","Ghana":"gh","Greece":"gr","Guatemala":"gt","Haiti":"ht","Honduras":"hn","Hungary":"hu","Iceland":"is","India":"in","Indonesia":"id","Iran":"ir","Iraq":"iq","Ireland":"ie","Israel":"il","Italy":"it","Jamaica":"jm","Japan":"jp","Jordan":"jo","Kazakhstan":"kz","Kenya":"ke","Kuwait":"kw","Kyrgyzstan":"kg","Laos":"la","Latvia":"lv","Lebanon":"lb","Libya":"ly","Lithuania":"lt","Luxembourg":"lu","Madagascar":"mg","Malaysia":"my","Maldives":"mv","Mali":"ml","Malta":"mt","Mexico":"mx","Moldova":"md","Monaco":"mc","Mongolia":"mn","Montenegro":"me","Morocco":"ma","Mozambique":"mz","Myanmar":"mm","Nepal":"np","Netherlands":"nl","New Zealand":"nz","Nicaragua":"ni","Niger":"ne","Nigeria":"ng","North Korea":"kp","Norway":"no","Oman":"om","Pakistan":"pk","Palestine":"ps","Panama":"pa","Paraguay":"py","Peru":"pe","Philippines":"ph","Poland":"pl","Portugal":"pt","Qatar":"qa","Romania":"ro","Russia":"ru","Rwanda":"rw","Saudi Arabia":"sa","Senegal":"sn","Serbia":"rs","Singapore":"sg","Slovakia":"sk","Slovenia":"si","Somalia":"so","South Africa":"za","South Korea":"kr","Spain":"es","Sri Lanka":"lk","Sudan":"sd","Sweden":"se","Switzerland":"ch","Syria":"sy","Taiwan":"tw","Tajikistan":"tj","Tanzania":"tz","Thailand":"th","Turkey":"tr","Turkmenistan":"tm","Uganda":"ug","Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb","United States":"us","Uruguay":"uy","Uzbekistan":"uz","Venezuela":"ve","Vietnam":"vn","Yemen":"ye","Zambia":"zm","Zimbabwe":"zw"
   };
 
   let selectedCountryName = "Pakistan";
-
-  // Build Custom Flag Dropdown Items
   const dropdownList = $("#dropdownList");
+
   Object.keys(allCountriesMap).sort().forEach(cName => {
     const code = allCountriesMap[cName];
     const item = document.createElement("div");
@@ -609,19 +644,13 @@ input:focus {
     dropdownList.appendChild(item);
   });
 
-  // Toggle Dropdown
-  $("#flagHeader").onclick = () => {
-    $("#flagDropdown").classList.toggle("open");
-  };
+  $("#flagHeader").onclick = () => $("#flagDropdown").classList.toggle("open");
 
-  // Close Dropdown Outside Click
   document.addEventListener("click", (e) => {
-    if(!$("#flagDropdown").contains(e.target)) {
-      $("#flagDropdown").classList.remove("open");
-    }
+    if(!$("#flagDropdown").contains(e.target)) $("#flagDropdown").classList.remove("open");
   });
 
-  // ─── LOGIN & FLIP CARD ANIMATION LOGIC ───
+  // Login Handle
   $("#loginForm").onsubmit = async (e) => {
     e.preventDefault();
     try {
@@ -635,7 +664,6 @@ input:focus {
       if(result.success && result.token) {
         setToken(result.token);
         
-        // CARD FLIP TO BACK SIDE
         $("#flipCard").classList.add("flipped");
 
         setTimeout(() => {
@@ -643,47 +671,30 @@ input:focus {
           $("#dashboardApp").style.display = "block";
           $("#logoutBtn").style.display = "block";
           renderPagesFirebase();
-        }, 3000);
+        }, 2500);
 
       } else {
         showCustomAlert("Login Failed", "Incorrect email or password entered!");
       }
     } catch(err) {
-      showCustomAlert("Server Error", "Unable to connect to the login server!");
+      showCustomAlert("Network Error", "Unable to establish connection with server!");
     }
   };
 
-  // LOGOUT ACTION
-  $("#logoutBtn").onclick = async () => {
-    try {
-      await fetch(`${API_URL}?action=logout`, { headers: { "Authorization": getToken() } });
-    } catch(e){}
-    
-    setToken(null);
-    $("#dashboardApp").style.display = "none";
-    $("#logoutBtn").style.display = "none";
-    $("#loginScreen").style.display = "block";
+  $("#logoutBtn").onclick = () => forceLogout("You logged out successfully!");
 
-    setTimeout(() => {
-      $("#flipCard").classList.remove("flipped");
-      $("#loginForm").reset();
-    }, 100);
-  };
-
-  // Form Visibility Toggle
   $("#toggleFormBtn").onclick = () => {
     const f = $("#addUserForm");
     f.style.display = f.style.display === "none" ? "block" : "none";
   };
 
-  // Form Field Validator
   function validateInputs() {
     const ok = /^[0-9]{8}$/.test($("#u_trader").value.trim());
     $("#confirmSaveBtn").disabled = !($("#u_email").value.trim() && $("#u_name").value.trim() && ok && $("#u_date").value && selectedCountryName);
   }
   ["u_email","u_name","u_trader","u_date"].forEach(id => $("#"+id).oninput = validateInputs);
 
-  // Submit Save Profile
+  // Save User Action
   $("#confirmSaveBtn").onclick = async () => {
     const u = {
       email: $("#u_email").value.trim(),
@@ -700,13 +711,18 @@ input:focus {
       });
       const status = await res.json();
       if(status.success) {
-        $("#addUserForm").reset(); $("#addUserForm").style.display = "none";
+        $("#addUserForm").reset(); 
+        $("#addUserForm").style.display = "none";
         renderPagesFirebase();
+      } else {
+        forceLogout(status.error || "Security token rejected!");
       }
-    } catch(err) { showCustomAlert("Error", "Could not save user profile!"); }
+    } catch(err) { 
+      forceLogout("Network error occurred while saving!"); 
+    }
   };
 
-  // Render Dashboard User Cards
+  // Render Cards Action
   async function renderPagesFirebase() {
     const grid = $("#usersGrid");
     grid.innerHTML = "";
@@ -716,8 +732,7 @@ input:focus {
       const responseData = await res.json();
 
       if(!responseData.success) {
-        setToken(null);
-        location.reload();
+        forceLogout(responseData.error || "Session Invalid or Multi-Device Detected!");
         return;
       }
 
@@ -765,20 +780,38 @@ input:focus {
           </div>`;
 
         card.querySelector(`#pay_${key}`).onchange = async (e) => {
-          await fetch(`${API_URL}?action=updatePayment&userKey=${key}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", "Authorization": getToken() },
-            body: JSON.stringify({ paidStatus: e.target.checked })
-          });
-          renderPagesFirebase();
+          try {
+            const updRes = await fetch(`${API_URL}?action=updatePayment&userKey=${key}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", "Authorization": getToken() },
+              body: JSON.stringify({ paidStatus: e.target.checked })
+            });
+            const updData = await updRes.json();
+            if(!updData.success) {
+              forceLogout("Payment update rejected. Logged out!");
+              return;
+            }
+            renderPagesFirebase();
+          } catch(err) {
+            forceLogout("Network error during payment update!");
+          }
         };
 
         card.querySelector(".openBtn").onclick = () => card.querySelector(".page-detail").style.display = "block";
         card.querySelector(".hideBtn").onclick = () => card.querySelector(".page-detail").style.display = "none";
         
         card.querySelector(".removeBtn").onclick = async () => {
-          await fetch(`${API_URL}?action=delete&userKey=${key}`, { headers: { "Authorization": getToken() } });
-          renderPagesFirebase();
+          try {
+            const delRes = await fetch(`${API_URL}?action=delete&userKey=${key}`, { headers: { "Authorization": getToken() } });
+            const delData = await delRes.json();
+            if(!delData.success) {
+              forceLogout("Delete failed. Token invalid!");
+              return;
+            }
+            renderPagesFirebase();
+          } catch(err) {
+            forceLogout("Network issue on delete!");
+          }
         };
 
         grid.appendChild(card);
@@ -791,15 +824,9 @@ input:focus {
         });
       };
 
-    } catch(e){}
-  }
-
-  // Auto Session Check
-  if(getToken()) {
-    $("#loginScreen").style.display = "none";
-    $("#dashboardApp").style.display = "block";
-    $("#logoutBtn").style.display = "block";
-    renderPagesFirebase();
+    } catch(e){
+      forceLogout("Network communication broken!");
+    }
   }
 </script>
 </body>
