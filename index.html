@@ -549,15 +549,19 @@ input:focus {
 
 <script type="module">
   const API_URL = "https://ahmad-bhai-codes-user.vercel.app/c";
+  const STORAGE_KEY = "magic_user_session_token";
   const $ = s => document.querySelector(s);
 
-  // IN-MEMORY SESSION TOKEN ONLY (NO LOCAL STORAGE)
-  let activeSessionToken = "";
+  // SESSION STORAGE ENGINE (Survives Page Refresh, Clears on Tab Close)
+  function getToken() { 
+    return sessionStorage.getItem(STORAGE_KEY) || ""; 
+  }
+  function setToken(t) { 
+    if (t) sessionStorage.setItem(STORAGE_KEY, t);
+    else sessionStorage.removeItem(STORAGE_KEY);
+  }
 
-  function getToken() { return activeSessionToken; }
-  function setToken(t) { activeSessionToken = t || ""; }
-
-  // Custom Alert Modal
+  // Custom Alert Dialog Modal
   function showCustomAlert(title, message) {
     $("#dialogTitle").textContent = title;
     $("#dialogMsg").textContent = message;
@@ -570,9 +574,10 @@ input:focus {
 
   // Immediate Hard Logout Trigger
   async function forceLogout(reasonMessage = "Session Expired or Network Interrupted!") {
-    if (activeSessionToken) {
+    const currentToken = getToken();
+    if (currentToken) {
       try {
-        await fetch(`${API_URL}?action=logout`, { headers: { "Authorization": getToken() } });
+        await fetch(`${API_URL}?action=logout`, { headers: { "Authorization": currentToken } });
       } catch(e){}
     }
     
@@ -586,20 +591,14 @@ input:focus {
       $("#loginForm").reset();
     }, 100);
 
-    showCustomAlert("Logged Out", reasonMessage);
+    if (reasonMessage) {
+      showCustomAlert("Security Alert", reasonMessage);
+    }
   }
 
   // ─── AGGRESSIVE NETWORK & SECURITY LISTENERS ───
-  // 1. Net Error / Disconnect Trigger
   window.addEventListener('offline', () => {
     forceLogout("Internet connection lost. You have been logged out for security!");
-  });
-
-  // 2. Unload / Close Tab Guard
-  window.addEventListener('beforeunload', () => {
-    if(activeSessionToken) {
-      navigator.sendBeacon(`${API_URL}?action=logout&token=${activeSessionToken}`);
-    }
   });
 
   // Password Toggle
@@ -615,7 +614,7 @@ input:focus {
     }
   };
 
-  // Countries Flag Engine
+  // Countries Flag Engine A-Z
   const allCountriesMap = {
     "Afghanistan":"af","Albania":"al","Algeria":"dz","Andorra":"ad","Angola":"ao","Argentina":"ar","Armenia":"am","Australia":"au","Austria":"at","Azerbaijan":"az","Bahamas":"bs","Bahrain":"bh","Bangladesh":"bd","Barbados":"bb","Belarus":"by","Belgium":"be","Belize":"bz","Benin":"bj","Bhutan":"bt","Bolivia":"bo","Bosnia and Herzegovina":"ba","Botswana":"bw","Brazil":"br","Brunei":"bn","Bulgaria":"bg","Burkina Faso":"bf","Burundi":"bi","Cambodia":"kh","Cameroon":"cm","Canada":"ca","Chile":"cl","China":"cn","Colombia":"co","Costa Rica":"cr","Croatia":"hr","Cuba":"cu","Cyprus":"cy","Czechia":"cz","Denmark":"dk","Djibouti":"dj","Dominica":"dm","Dominican Republic":"do","Ecuador":"ec","Egypt":"eg","El Salvador":"sv","Estonia":"ee","Ethiopia":"et","Fiji":"fj","Finland":"fi","France":"fr","Gabon":"ga","Georgia":"ge","Germany":"de","Ghana":"gh","Greece":"gr","Guatemala":"gt","Haiti":"ht","Honduras":"hn","Hungary":"hu","Iceland":"is","India":"in","Indonesia":"id","Iran":"ir","Iraq":"iq","Ireland":"ie","Israel":"il","Italy":"it","Jamaica":"jm","Japan":"jp","Jordan":"jo","Kazakhstan":"kz","Kenya":"ke","Kuwait":"kw","Kyrgyzstan":"kg","Laos":"la","Latvia":"lv","Lebanon":"lb","Libya":"ly","Lithuania":"lt","Luxembourg":"lu","Madagascar":"mg","Malaysia":"my","Maldives":"mv","Mali":"ml","Malta":"mt","Mexico":"mx","Moldova":"md","Monaco":"mc","Mongolia":"mn","Montenegro":"me","Morocco":"ma","Mozambique":"mz","Myanmar":"mm","Nepal":"np","Netherlands":"nl","New Zealand":"nz","Nicaragua":"ni","Niger":"ne","Nigeria":"ng","North Korea":"kp","Norway":"no","Oman":"om","Pakistan":"pk","Palestine":"ps","Panama":"pa","Paraguay":"py","Peru":"pe","Philippines":"ph","Poland":"pl","Portugal":"pt","Qatar":"qa","Romania":"ro","Russia":"ru","Rwanda":"rw","Saudi Arabia":"sa","Senegal":"sn","Serbia":"rs","Singapore":"sg","Slovakia":"sk","Slovenia":"si","Somalia":"so","South Africa":"za","South Korea":"kr","Spain":"es","Sri Lanka":"lk","Sudan":"sd","Sweden":"se","Switzerland":"ch","Syria":"sy","Taiwan":"tw","Tajikistan":"tj","Tanzania":"tz","Thailand":"th","Turkey":"tr","Turkmenistan":"tm","Uganda":"ug","Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb","United States":"us","Uruguay":"uy","Uzbekistan":"uz","Venezuela":"ve","Vietnam":"vn","Yemen":"ye","Zambia":"zm","Zimbabwe":"zw"
   };
@@ -671,7 +670,7 @@ input:focus {
           $("#dashboardApp").style.display = "block";
           $("#logoutBtn").style.display = "block";
           renderPagesFirebase();
-        }, 2500);
+        }, 2200);
 
       } else {
         showCustomAlert("Login Failed", "Incorrect email or password entered!");
@@ -827,6 +826,14 @@ input:focus {
     } catch(e){
       forceLogout("Network communication broken!");
     }
+  }
+
+  // AUTO RESTORE ON PAGE REFRESH
+  if(getToken()) {
+    $("#loginScreen").style.display = "none";
+    $("#dashboardApp").style.display = "block";
+    $("#logoutBtn").style.display = "block";
+    renderPagesFirebase();
   }
 </script>
 </body>
